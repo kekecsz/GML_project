@@ -188,7 +188,7 @@ do_GML_confirmatory_analysis = function(data){
 ### save data into an object
 ### in the example below the analysis runs on simulated data, this needs to be replaced with the real data
 
-hits_data = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/hits_data.csv")
+hits_data = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/simulated_hits_data.csv")
 
 
 #########################################
@@ -197,5 +197,6 @@ hits_data = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs
 
 ### run the analysis
 results = do_GML_confirmatory_analysis(hits_data)
+
 
 results
