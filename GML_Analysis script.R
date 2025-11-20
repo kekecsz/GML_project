@@ -185,10 +185,14 @@ do_GML_confirmatory_analysis = function(data){
 #########################################
 
 
-### save data into an object
+### import data into an object
 ### in the example below the analysis runs on simulated data, this needs to be replaced with the real data
 
-hits_data = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/simulated_hits_data.csv")
+hits_data_pre = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/simulated_hits_data.csv")
+
+### Exclude invalid sessions
+
+hits_data = hits_data_pre[hits_data_pre$valid == 1,]
 
 
 #########################################
