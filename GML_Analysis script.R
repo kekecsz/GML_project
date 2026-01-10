@@ -6,10 +6,30 @@
 
 ### Function that pre-processes data that is already segmented per lab
 
-preprocessor <- function(data){
-  remainder = nrow(data) %% 50
-  last_study_n = 50 + remainder
-  study_ns = c(rep(50, (nrow(data) - last_study_n)/50), last_study_n)
+preprocessor <- function(data_pre){
+  n_real = nrow(data_pre[data_pre["E_session_type"] == "real",])
+  n_sham = nrow(data_pre[data_pre["E_session_type"] == "sham",])
+  
+  n_to_use = min(n_real, n_sham)
+  n_real_excluded_nopair = n_real-n_to_use
+  n_sham_excluded_nopair = n_sham-n_to_use
+  
+  hits_X = data_pre[data_pre["E_session_type"] == "real","hits_X"][1:n_to_use]
+  hits_O = data_pre[data_pre["E_session_type"] == "real","hits_O"][1:n_to_use]
+  hits_SX = data_pre[data_pre["E_session_type"] == "sham","hits_X"][1:n_to_use]
+  hits_SO = data_pre[data_pre["E_session_type"] == "sham","hits_O"][1:n_to_use]
+  lab_IDs = data_pre[data_pre["E_session_type"] == "real","lab_ID"][1:n_to_use]
+  
+  data = data.frame(hits_X = hits_X, hits_O = hits_O, hits_SX = hits_SX, hits_SO = hits_SO, lab_IDs = lab_IDs)
+  
+  if(nrow(data) < 50){
+    study_ns = nrow(data)
+  } else {
+    remainder = nrow(data) %% 50
+    last_study_n = 50 + remainder
+    study_ns = c(rep(50, (nrow(data) - last_study_n)/50), last_study_n)
+  }
+
   
   # Template sub-list
   template <- list(
@@ -17,6 +37,7 @@ preprocessor <- function(data){
     study_row_indices = NA,
     results = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     study_n = data.frame(X = NA, O = NA, SX = NA, SO = NA),
+    exclusions_due_to_no_pair = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     num_hits = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     p_value = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     Z_score = data.frame(X = NA, O = NA, SX = NA, SO = NA)
@@ -41,6 +62,8 @@ preprocessor <- function(data){
     
     results_list[[i]][["study_n"]] = data.frame(X = study_ns[i], O = study_ns[i], 
                                                 SX = study_ns[i], SO = study_ns[i])
+    results_list[[i]][["exclusions_due_to_no_pair"]] = data.frame(X =  n_real_excluded_nopair, O =  n_real_excluded_nopair, 
+                                                                  SX =  n_sham_excluded_nopair, SO =  n_sham_excluded_nopair)
     results_list[[i]][["num_hits"]] = data.frame(
       X = sum(results_list[[i]][["results"]][["X"]]),
       O = sum(results_list[[i]][["results"]][["O"]]),
@@ -188,11 +211,12 @@ do_GML_confirmatory_analysis = function(data){
 ### import data into an object
 ### in the example below the analysis runs on simulated data, this needs to be replaced with the real data
 
-hits_data_pre = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/simulated_hits_data.csv")
+hits_data_raw = read.csv("https://raw.githubusercontent.com/kekecsz/GML_project/refs/heads/main/simulated_hits_data.csv")
+hits_data_raw = hits_data_raw[order(hits_data_raw$E_in_lab_experiment_start_time), ]
 
 ### Exclude invalid sessions
 
-hits_data = hits_data_pre[hits_data_pre$valid == 1,]
+hits_data_valid = hits_data_raw[hits_data_raw$valid == 1,]
 
 
 #########################################
@@ -200,6 +224,6 @@ hits_data = hits_data_pre[hits_data_pre$valid == 1,]
 #########################################
 
 ### run the analysis
-results = do_GML_confirmatory_analysis(hits_data)
+results = do_GML_confirmatory_analysis(hits_data_valid)
 
 results
