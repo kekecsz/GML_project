@@ -35,13 +35,23 @@ lab_name_sampler <- function(n_trials, n_labs) {
 }
 
 data_simulation <- function(n_trials, n_labs, prob_X,prob_O,prob_SX,prob_SO){
-  hits_data = data.frame(
+  hits_data_real = data.frame(
     hits_X = rbinom(n_trials, 1, prob = prob_X),
     hits_O = rbinom(n_trials, 1, prob = prob_O),
-    hits_SX = rbinom(n_trials, 1, prob = prob_SX),
-    hits_SO = rbinom(n_trials, 1, prob = prob_SO),
-    lab_ID = lab_name_sampler(n_trials, n_labs)
+    lab_ID = lab_name_sampler(n_trials, n_labs),
+    valid = rep(1, n_trials),
+    E_in_lab_experiment_start_time = 1:n_trials,
+    E_session_type = rep("real", n_trials)
   )
+  hits_data_sham = data.frame(
+    hits_X = rbinom(n_trials, 1, prob = prob_SX),
+    hits_O = rbinom(n_trials, 1, prob = prob_SO),
+    lab_ID = lab_name_sampler(n_trials, n_labs),
+    valid = rep(1, n_trials),
+    E_in_lab_experiment_start_time = 1:n_trials,
+    E_session_type = rep("sham", n_trials)
+  )
+  hits_data = rbind(hits_data_real, hits_data_sham)
   return(hits_data)
 }
 
