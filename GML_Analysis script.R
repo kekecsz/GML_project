@@ -6,13 +6,13 @@
 
 ### Function that pre-processes data that is already segmented per lab
 
-preprocessor <- function(data_pre){
+preprocessor_1 <- function(data_pre){
   n_real = nrow(data_pre[data_pre["E_session_type"] == "real",])
   n_sham = nrow(data_pre[data_pre["E_session_type"] == "sham",])
   
   n_to_use = min(n_real, n_sham)
-  n_real_excluded_nopair = n_real-n_to_use
-  n_sham_excluded_nopair = n_sham-n_to_use
+  n_real_excluded_nopair = n_real-n_to_use # for reporting in the paper
+  n_sham_excluded_nopair = n_sham-n_to_use # for reporting in the paper
   
   hits_X = data_pre[data_pre["E_session_type"] == "real","hits_X"][1:n_to_use]
   hits_O = data_pre[data_pre["E_session_type"] == "real","hits_O"][1:n_to_use]
@@ -22,48 +22,84 @@ preprocessor <- function(data_pre){
   
   data = data.frame(hits_X = hits_X, hits_O = hits_O, hits_SX = hits_SX, hits_SO = hits_SO, lab_IDs = lab_IDs)
   
-  if(nrow(data) < 50){
-    study_ns = nrow(data)
-  } else {
-    remainder = nrow(data) %% 50
-    last_study_n = 50 + remainder
-    study_ns = c(rep(50, (nrow(data) - last_study_n)/50), last_study_n)
-  }
+  data_list = list(
+    data = data
+  )
+  names(data_list) = data$lab_IDs[1]
+  
+  return(data_list)
+}
+  
+preprocessor_2 <- function(data, study_ns){
 
+ ### extract row indices, hits, and study sample size for each "sub-study" 
+  
+  study_row_indices = NULL
+  last_number = 0
+  data_list = NULL
+  
+  for(i in 1:length(study_ns)){
+    study_row_indices[[i]] = (last_number+1):(last_number+study_ns[i])
+    last_number = last_number+study_ns[i]
+    
+    data_list[[i]] = data[study_row_indices[[i]],]
+
+  }
+  return(data_list)
+}
+
+
+preprocessor_3 <- function(data, study_ns){
+  
+  ### extract row indices, hits, and study sample size for each "sub-study" 
+  
+  study_row_indices = NULL
+  last_number = 0
+  data_list = NULL
+  
+  for(i in 1:length(study_ns)){
+    study_row_indices[[i]] = (last_number+1):(last_number+study_ns[i])
+    last_number = last_number+study_ns[i]
+    
+    data_study = data[study_row_indices[[i]],]
+    data_study$lab_IDs = paste(unique(data_study$lab_IDs), collapse = "_")
+
+    data_list[[i]] = data_study
+    
+  }
+  return(data_list)
+}
+
+
+preprocessor_4 <- function(data){
   
   # Template sub-list
   template <- list(
     lab_ID = NA,
-    study_row_indices = NA,
     results = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     study_n = data.frame(X = NA, O = NA, SX = NA, SO = NA),
-    exclusions_due_to_no_pair = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     num_hits = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     p_value = data.frame(X = NA, O = NA, SX = NA, SO = NA),
     Z_score = data.frame(X = NA, O = NA, SX = NA, SO = NA)
   )
   
   # Create sub-lists
-  results_list <- replicate(length(study_ns), template, simplify = FALSE)
+  results_list <- replicate(length(data), template, simplify = FALSE)
   
-  ### extract row indices, hits, and study sample size for each "sub-study" 
-  last_number = 0
-  for(i in 1:length(study_ns)){
-    results_list[[i]][["lab_ID"]] = data$lab_ID[1]
-    results_list[[i]][["study_row_indices"]] = (last_number+1):(last_number+study_ns[i])
-    last_number = last_number+study_ns[i]
+  ### extract hits, and study sample size for each "sub-study" 
+
+  for(i in 1:length(data)){
+    results_list[[i]][["lab_ID"]] = data[[i]]$lab_ID[1]
     
     results_list[[i]][["results"]] = data.frame(
-      X = data[results_list[[i]][["study_row_indices"]], "hits_X"],
-      O = data[results_list[[i]][["study_row_indices"]], "hits_O"],
-      SX = data[results_list[[i]][["study_row_indices"]], "hits_SX"],
-      SO = data[results_list[[i]][["study_row_indices"]], "hits_SO"]
+      X = data[[i]][, "hits_X"],
+      O = data[[i]][, "hits_O"],
+      SX = data[[i]][, "hits_SX"],
+      SO = data[[i]][, "hits_SO"]
     )
     
-    results_list[[i]][["study_n"]] = data.frame(X = study_ns[i], O = study_ns[i], 
-                                                SX = study_ns[i], SO = study_ns[i])
-    results_list[[i]][["exclusions_due_to_no_pair"]] = data.frame(X =  n_real_excluded_nopair, O =  n_real_excluded_nopair, 
-                                                                  SX =  n_sham_excluded_nopair, SO =  n_sham_excluded_nopair)
+    results_list[[i]][["study_n"]] = data.frame(X = nrow(data[[i]]), O = nrow(data[[i]]), 
+                                                SX = nrow(data[[i]]), SO = nrow(data[[i]]))
     results_list[[i]][["num_hits"]] = data.frame(
       X = sum(results_list[[i]][["results"]][["X"]]),
       O = sum(results_list[[i]][["results"]][["O"]]),
@@ -178,16 +214,65 @@ global_analysis_function = function(results_list, prob_of_18_hits){
 ### Wrapper function that does all preprocessing and data analysis at once to get the final confirmatory analysis data
 
 do_GML_confirmatory_analysis = function(data){
+  
   data_segmented_by_lab = split(data, data$lab_ID)
+  
+  data_segmented_by_lab_preprocessed_1 = NULL
+  
+  for(i in 1:length(data_segmented_by_lab)){
+    data_segmented_by_lab_preprocessed_1_lab = preprocessor_1(data_segmented_by_lab[[i]])
+    data_segmented_by_lab_preprocessed_1 = c(data_segmented_by_lab_preprocessed_1, data_segmented_by_lab_preprocessed_1_lab)
+  }
+  
+  cycle_through_labs_for_n51 = c(
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*1],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*2],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*3],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*4],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*5],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*6],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*7],
+    names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*8]
+  )[1:8]
+
   
   results_list_preprocessed = NULL
   
-  for(i in 1:length(data_segmented_by_lab)){
-    results_list_preprocessed_lab = preprocessor(data_segmented_by_lab[[i]])
+  for(i in 1:length(data_segmented_by_lab_preprocessed_1)){
+    n51s_for_this_study = rep(51, sum(cycle_through_labs_for_n51%in%names(data_segmented_by_lab_preprocessed_1)[[i]]))
+    remainder = (nrow(data_segmented_by_lab_preprocessed_1[[i]])-sum(n51s_for_this_study)) %% 50
+    n50s_for_this_lab = rep(50, (nrow(data_segmented_by_lab_preprocessed_1[[i]])-sum(n51s_for_this_study)-remainder)/50)
+    n_of_studies_for_this_lab = c(n51s_for_this_study, n50s_for_this_lab, if(remainder == 0){NULL}else{remainder})
+
+        
+    results_list_preprocessed_lab = preprocessor_2(data_segmented_by_lab_preprocessed_1[[i]], n_of_studies_for_this_lab)
     results_list_preprocessed = c(results_list_preprocessed, results_list_preprocessed_lab)
   }
   
-  results_list = per_study_analysis_function(results_list_preprocessed)
+  trials_n50ormore = results_list_preprocessed[sapply(results_list_preprocessed, nrow) >= 50]
+  
+  remaining_trials=do.call(rbind, results_list_preprocessed[sapply(results_list_preprocessed, nrow) < 50])
+  
+  if(is.null(remaining_trials)){
+    results_list_preprocessed_2 = trials_n50ormore
+    print("nor remaining studies")
+  } else {
+    remainder = nrow(remaining_trials) %% 50
+    print(paste0("remainder = ", remainder))
+    print(paste0("rows = ", nrow(remaining_trials)))
+    n50s_for_remaining_trials = rep(50, (nrow(remaining_trials)-remainder)/50)
+    n_of_studies_for_remaining_trials = c(n50s_for_remaining_trials, if(remainder == 0){NULL}else{remainder})
+    
+    remaining_studies_list = preprocessor_3(remaining_trials, n_of_studies_for_remaining_trials)
+    
+    results_list_preprocessed_2 = c(trials_n50ormore, remaining_studies_list)
+    
+  }
+
+  results_list_preprocessed_3 = preprocessor_4(results_list_preprocessed_2)
+  
+  
+  results_list = per_study_analysis_function(results_list_preprocessed_3)
   
   
   p_value_50 <- pbinom(18, size = 50, prob = 0.25, lower.tail = FALSE)

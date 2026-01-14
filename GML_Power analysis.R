@@ -69,14 +69,14 @@ simulation_function = function(n_trials_first_research, n_trials_replication_res
   global_results_first_research["same_outcome_triggered_as_in_previous_study"] = 0
   
   if(global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "X"]<=0.05){global_results_first_research["DR_triggered"] = 1} else {global_results_first_research["DR_triggered"] = 0}
-  if(global_results_table[global_results_table$outcome_name == "stouffer_z", "X"]>=1.64){global_results_first_research["HR_triggered"] = 1} else {global_results_first_research["HR_triggered"] = 0}
+  if(global_results_table[global_results_table$outcome_name == "global_binom_p", "X"]<=0.05){global_results_first_research["HR_triggered"] = 1} else {global_results_first_research["HR_triggered"] = 0}
   
   effect_present_in_X = (global_results_first_research["DR_triggered"] == 1) | (global_results_first_research["HR_triggered"] == 1)
   global_results_first_research["effect_present_in_X"] = sum(effect_present_in_X)
   
-  global_results_first_research["number_of_effects_in_control_experiments"] = sum(c(global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "O"]<=0.05, global_results_table[global_results_table$outcome_name == "stouffer_z", "O"]>=1.64, 
-                                                                                    global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "SX"]<=0.05, global_results_table[global_results_table$outcome_name == "stouffer_z", "SX"]>=1.64, 
-                                                                                    global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "SO"]<=0.05, global_results_table[global_results_table$outcome_name == "stouffer_z", "SO"]>=1.64))
+  global_results_first_research["number_of_effects_in_control_experiments"] = sum(c(global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "O"]<=0.05, global_results_table[global_results_table$outcome_name == "global_binom_p", "O"]<=0.05, 
+                                                                                    global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "SX"]<=0.05, global_results_table[global_results_table$outcome_name == "global_binom_p", "SX"]<=0.05, 
+                                                                                    global_results_table[global_results_table$outcome_name == "binom_of_num_sig_discoveries_p", "SO"]<=0.05, global_results_table[global_results_table$outcome_name == "global_binom_p", "SO"]<=0.05))
   
   global_results_first_research["was_replication"] = 0
   global_results_first_research["replication_success"] = 0
@@ -92,14 +92,14 @@ simulation_function = function(n_trials_first_research, n_trials_replication_res
     global_results_replication["same_outcome_triggered_as_in_previous_study"] = 0
     
     if(global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "X"]<=0.05){global_results_replication["DR_triggered"] = 1} else {global_results_replication["DR_triggered"] = 0}
-    if(global_results_table_replication[global_results_table_replication$outcome_name == "stouffer_z", "X"]>=1.64){global_results_replication["HR_triggered"] = 1} else {global_results_replication["HR_triggered"] = 0}
+    if(global_results_table_replication[global_results_table_replication$outcome_name == "global_binom_p", "X"]<=0.05){global_results_replication["HR_triggered"] = 1} else {global_results_replication["HR_triggered"] = 0}
     
     effect_present_in_X = (global_results_replication["DR_triggered"] == 1) | (global_results_replication["HR_triggered"] == 1)
     global_results_replication["effect_present_in_X"] = sum(effect_present_in_X)
     
-    global_results_replication["number_of_effects_in_control_experiments"] = sum(c(global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "O"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "stouffer_z", "O"]>=1.64, 
-                                                                                   global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "SX"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "stouffer_z", "SX"]>=1.64, 
-                                                                                   global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "SO"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "stouffer_z", "SO"]>=1.64))
+    global_results_replication["number_of_effects_in_control_experiments"] = sum(c(global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "O"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "global_binom_p", "O"]<=0.05, 
+                                                                                   global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "SX"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "global_binom_p", "SX"]<=0.05, 
+                                                                                   global_results_table_replication[global_results_table_replication$outcome_name == "binom_of_num_sig_discoveries_p", "SO"]<=0.05, global_results_table_replication[global_results_table_replication$outcome_name == "global_binom_p", "SO"]<=0.05))
     
     global_results_replication["was_replication"] = 1
     if(global_results_first_research["DR_triggered"] == 1){global_results_replication["DR_triggered_in_previous_study"] = 1}
