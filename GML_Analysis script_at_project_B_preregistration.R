@@ -1,34 +1,103 @@
 ### Data analysis code for the GML project
 
 #########################################
+#             Libraries                 #
+#########################################
+library(tidyverse)
+
+#########################################
 #          Custom functions             #
 #########################################
 
+### Function to see if a number is even
+
+is_even <- function(x) x %% 2 == 0
 
 ### Function that pre-processes data that is already segmented per lab
 
 preprocessor_1 <- function(data_pre){
-  n_real = nrow(data_pre[data_pre["E_session_type"] == "real",])
-  n_sham = nrow(data_pre[data_pre["E_session_type"] == "sham",])
+  #################################################################
+  #      Invalidate shams trials that come before reals trials    #
+  #                  and extracting hits data                     #
+  #################################################################
   
-  n_to_use = min(n_real, n_sham)
-  n_real_excluded_nopair = n_real-n_to_use # for reporting in the paper
-  n_sham_excluded_nopair = n_sham-n_to_use # for reporting in the paper
+  session_IDs_with_pairs = NULL
+  session_IDs_that_cannot_be_paired = NULL
+  trial_pairs = data.frame(real_session_ID = NULL, sham_session_ID = NULL, hits_X = NULL, hits_O = NULL, hits_SX = NULL, hits_SO = NULL, lab_IDs = NULL)
   
-  hits_X = data_pre[data_pre["E_session_type"] == "real","hits_X"][1:n_to_use]
-  hits_O = data_pre[data_pre["E_session_type"] == "real","hits_O"][1:n_to_use]
-  hits_SX = data_pre[data_pre["E_session_type"] == "sham","hits_X"][1:n_to_use]
-  hits_SO = data_pre[data_pre["E_session_type"] == "sham","hits_O"][1:n_to_use]
-  lab_IDs = data_pre[data_pre["E_session_type"] == "real","lab_ID"][1:n_to_use]
+  lab_IDs = unique(hits_data_valid$lab_ID)
   
-  data = data.frame(hits_X = hits_X, hits_O = hits_O, hits_SX = hits_SX, hits_SO = hits_SO, lab_IDs = lab_IDs)
+  for(j in 1:length(lab_IDs)){
+    nrow_real = hits_data_valid %>% filter(E_session_type == "real", lab_ID == lab_IDs[j]) %>% nrow()
+    nrow_sham = hits_data_valid %>% filter(E_session_type == "sham", lab_ID == lab_IDs[j]) %>% nrow()
+    
+    if(nrow_real == 0){
+      print(paste0("no real session in lab ", lab_IDs[j]))
+      shams_without_pairs = hits_data_valid %>% filter(E_session_type == "sham", lab_ID == lab_IDs[j]) %>% pull(session_ID)
+      session_IDs_that_cannot_be_paired = c(session_IDs_that_cannot_be_paired, shams_without_pairs)
+    } else if(nrow_sham == 0){
+      print(paste0("no sham session in lab ", lab_IDs[j]))
+      reals_without_pairs = hits_data_valid %>% filter(E_session_type == "real", lab_ID == lab_IDs[j]) %>% pull(session_ID)
+      session_IDs_that_cannot_be_paired = c(session_IDs_that_cannot_be_paired, reals_without_pairs)
+    } else {
+      for(i in 1:nrow_real){
+        # only search for pairs in the dataset of trials that we don't yet have pairs for in the given lab
+        print(paste0("finding pair for trial ", i, " in lab ", lab_IDs[j]))
+        
+        data_to_search_in = hits_data_valid %>% 
+          filter(!session_ID %in% session_IDs_with_pairs,
+                 !session_ID %in% session_IDs_that_cannot_be_paired,
+                 lab_ID == lab_IDs[j])
+        
+        
+        real_trial_dates = data_to_search_in %>% filter(E_session_type == "real") %>% pull(E_in_lab_experiment_start_time)
+        
+        first_real_trial_date = min(real_trial_dates)
+        which_first_real_trial_date = which.min(real_trial_dates)
+        real_session_ID = data_to_search_in %>% filter(E_session_type == "real") %>% slice(which_first_real_trial_date) %>% pull(session_ID)
+        hits_X = data_to_search_in %>% filter(E_session_type == "real") %>% slice(which_first_real_trial_date) %>% pull(hits_X)
+        hits_O = data_to_search_in %>% filter(E_session_type == "real") %>% slice(which_first_real_trial_date) %>% pull(hits_O)
+        
+        sham_trial_dates = data_to_search_in %>% filter(E_session_type == "sham") %>% pull(E_in_lab_experiment_start_time)
+        
+        ### Extract the index of the lowest of the sham_trial_dates that are higher than the first_real_trial_date
+        which_first_higher_lowest_date = which_first_lowest(first_real_trial_date, sham_trial_dates)
+        
+        if(is.na(which_first_higher_lowest_date)){
+          session_IDs_that_cannot_be_paired = c(session_IDs_that_cannot_be_paired, real_session_ID)
+        }
+        
+        if(!is.na(which_first_higher_lowest_date)){
+          sham_session_ID = data_to_search_in %>% filter(E_session_type == "sham") %>% slice(which_first_higher_lowest_date) %>% pull(session_ID)
+          hits_SX = data_to_search_in %>% filter(E_session_type == "sham") %>% slice(which_first_higher_lowest_date) %>% pull(hits_X)
+          hits_SO = data_to_search_in %>% filter(E_session_type == "sham") %>% slice(which_first_higher_lowest_date) %>% pull(hits_O)
+          session_IDs_with_pairs = c(session_IDs_with_pairs, real_session_ID, sham_session_ID)
+          
+          trial_pairs = rbind(trial_pairs, data.frame(real_session_ID = real_session_ID, sham_session_ID = sham_session_ID, hits_X = hits_X, hits_O = hits_O, hits_SX = hits_SX, hits_SO = hits_SO, lab_IDs = lab_IDs[j]))
+          
+          ### check if there are any sham sessions that have happened earlier than the real session of interest
+          first_higher_lowest_date = data_to_search_in %>% filter(session_ID == sham_session_ID) %>% pull(E_in_lab_experiment_start_time)
+          
+          if(sum(sham_trial_dates < first_higher_lowest_date) > 0) {
+            which_sham_trial_dates_before_real = which(sham_trial_dates < first_higher_lowest_date)
+            shams_without_pairs = data_to_search_in %>% filter(E_session_type == "sham") %>% slice(which_sham_trial_dates_before_real) %>% pull(session_ID)
+            session_IDs_that_cannot_be_paired = c(session_IDs_that_cannot_be_paired, shams_without_pairs)
+          }
+          
+          if((sum(sham_trial_dates > first_higher_lowest_date) & (length(real_trial_dates) == 1)) > 0) {
+            
+            which_are_remainder_sham_trials = which(sham_trial_dates > first_higher_lowest_date)
+            shams_without_pairs = data_to_search_in %>% filter(E_session_type == "sham") %>% slice(which_are_remainder_sham_trials) %>% pull(session_ID)
+            session_IDs_that_cannot_be_paired = c(session_IDs_that_cannot_be_paired, shams_without_pairs)
+          }
+        }
+      }
+    }
+  }
   
-  data_list = list(
-    data = data
-  )
-  names(data_list) = data$lab_IDs[1]
+  trial_pairs_by_lab = split(trial_pairs, trial_pairs$lab_IDs)
   
-  return(data_list)
+  return(trial_pairs_by_lab)
 }
   
 preprocessor_2 <- function(data, study_ns){
@@ -110,6 +179,18 @@ preprocessor_4 <- function(data){
   }
   
   return(results_list)
+}
+
+### Extract the index of the lowest of the sham_trial_dates that are higher than the first_real_trial_date
+which_first_lowest <- function(real_trial_date, sham_trial_dates){
+  if(sum(real_trial_date < sham_trial_dates) == 0){
+    which_first_higher_lowest_value = NA
+  } else {
+    first_higher_lowest_value = min(sham_trial_dates[real_trial_date < sham_trial_dates])
+    which_first_higher_lowest_value = which(first_higher_lowest_value == sham_trial_dates)
+  }
+  
+  return(which_first_higher_lowest_value)
 }
 
 ### Function calculating Z scores from number of hits, number of trials, and H0 probability
@@ -227,14 +308,7 @@ min_successes_for_significance <- function(n_rolls, p = 0.25, alpha = 0.05, alte
 
 do_GML_confirmatory_analysis = function(data){
   
-  data_segmented_by_lab = split(data, data$lab_ID)
-  
-  data_segmented_by_lab_preprocessed_1 = NULL
-  
-  for(i in 1:length(data_segmented_by_lab)){
-    data_segmented_by_lab_preprocessed_1_lab = preprocessor_1(data_segmented_by_lab[[i]])
-    data_segmented_by_lab_preprocessed_1 = c(data_segmented_by_lab_preprocessed_1, data_segmented_by_lab_preprocessed_1_lab)
-  }
+  data_segmented_by_lab_preprocessed_1 = preprocessor_1(data)
   
   cycle_through_labs_for_n51 = c(
     names(data_segmented_by_lab_preprocessed_1)[sapply(data_segmented_by_lab_preprocessed_1, nrow) >= 51*1],
@@ -267,11 +341,8 @@ do_GML_confirmatory_analysis = function(data){
   
   if(is.null(remaining_trials)){
     results_list_preprocessed_2 = trials_n50ormore
-    print("nor remaining studies")
   } else {
     remainder = nrow(remaining_trials) %% 50
-    print(paste0("remainder = ", remainder))
-    print(paste0("rows = ", nrow(remaining_trials)))
     n50s_for_remaining_trials = rep(50, (nrow(remaining_trials)-remainder)/50)
     n_of_studies_for_remaining_trials = c(n50s_for_remaining_trials, if(remainder == 0){NULL}else{remainder})
     
@@ -320,7 +391,6 @@ hits_data_raw = hits_data_raw[order(hits_data_raw$E_in_lab_experiment_start_time
 ### Exclude invalid sessions
 
 hits_data_valid = hits_data_raw[hits_data_raw$valid == 1,]
-
 
 #########################################
 #             Run analysis              #
